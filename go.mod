@@ -11,6 +11,7 @@ require (
 	github.com/improbable-eng/grpc-web v0.15.0
 	github.com/multiformats/go-multihash v0.2.3
 	github.com/stretchr/testify v1.12.1
+	golang.org/x/crypto v0.57.0
 	golang.org/x/time v0.16.0
 	google.golang.org/protobuf v1.36.12
 )
@@ -50,7 +51,6 @@ require (
 	go.opentelemetry.io/otel/metric v1.46.0 // indirect
 	go.opentelemetry.io/otel/trace v1.46.0 // indirect
 	go.yaml.in/yaml/v3 v3.0.5 // indirect
-	golang.org/x/crypto v0.57.0 // indirect
 	golang.org/x/exp v0.0.0-20230905200255-921286631fa9 // indirect
 	golang.org/x/sync v0.23.0 // indirect
 	lukechampine.com/blake3 v1.4.1 // indirect

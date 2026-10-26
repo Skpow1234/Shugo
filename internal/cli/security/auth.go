@@ -2,13 +2,14 @@ package security
 
 import (
 	"crypto/rand"
-	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
 	"time"
+
+	"golang.org/x/crypto/bcrypt"
 )
 
 // AuthManager manages authentication and authorization
@@ -397,16 +398,15 @@ func (am *AuthManager) DeactivateUser(userID string) error {
 
 // Utility functions
 func (am *AuthManager) hashPassword(password string) (string, error) {
-	hash := sha256.Sum256([]byte(password + "shugo_salt"))
-	return base64.StdEncoding.EncodeToString(hash[:]), nil
+	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	if err != nil {
+		return "", fmt.Errorf("bcrypt: %w", err)
+	}
+	return string(hash), nil
 }
 
 func (am *AuthManager) verifyPassword(password, hash string) bool {
-	expectedHash, err := am.hashPassword(password)
-	if err != nil {
-		return false
-	}
-	return expectedHash == hash
+	return bcrypt.CompareHashAndPassword([]byte(hash), []byte(password)) == nil
 }
 
 func (am *AuthManager) generateID() string {
