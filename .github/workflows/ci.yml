@@ -254,7 +254,7 @@ jobs:
           timeout 15s docker run --rm shugo-demo:ci -h
 
       - name: Trivy (HIGH/CRITICAL — warn only)
-        uses: aquasecurity/trivy-action@0.28.0
+        uses: aquasecurity/trivy-action@v0.36.0
         continue-on-error: true
         with:
           image-ref: shugo-node:ci
