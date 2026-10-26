@@ -31,7 +31,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
 
       - uses: ./.github/actions/setup-go
         with:
@@ -84,7 +84,7 @@ jobs:
     timeout-minutes: 25
     needs: [lint]
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
 
       - uses: ./.github/actions/setup-go
         with:
@@ -128,7 +128,7 @@ jobs:
     timeout-minutes: 10
     needs: [unit-tests]
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
 
       - uses: ./.github/actions/setup-go
         with:
@@ -151,7 +151,7 @@ jobs:
     timeout-minutes: 10
     needs: [unit-tests]
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
 
       - uses: ./.github/actions/setup-go
         with:
@@ -169,7 +169,7 @@ jobs:
     timeout-minutes: 10
     needs: [lint]
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
 
       - uses: ./.github/actions/setup-go
         with:
@@ -194,7 +194,7 @@ jobs:
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
 
       - uses: ./.github/actions/setup-go
         with:
@@ -231,7 +231,7 @@ jobs:
     timeout-minutes: 25
     needs: [unit-tests]
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
 
       - name: Set up Buildx
         uses: docker/setup-buildx-action@v3
@@ -272,7 +272,7 @@ jobs:
     needs: [unit-tests]
     continue-on-error: true
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
 
       - uses: ./.github/actions/setup-go
         with:
@@ -309,7 +309,7 @@ jobs:
     needs: [unit-tests]
     continue-on-error: true
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
 
       - uses: ./.github/actions/setup-go
         with:
@@ -342,7 +342,7 @@ jobs:
     needs: [lint]
     continue-on-error: true
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
 
       - uses: ./.github/actions/setup-go
         with:
@@ -366,7 +366,7 @@ jobs:
     needs: [unit-tests]
     continue-on-error: true
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
 
       - uses: ./.github/actions/setup-go
         with:
@@ -390,7 +390,7 @@ jobs:
     timeout-minutes: 5
     continue-on-error: true
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
 
       - name: Required docs exist
         run: |
