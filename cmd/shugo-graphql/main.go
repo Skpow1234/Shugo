@@ -22,7 +22,7 @@ func main() {
 		port             = flag.Int("port", 8080, "Port to listen on")
 		storageRoot      = flag.String("storage", "./storage", "Storage root directory")
 		bootstrapNodes   = flag.String("bootstrap", "", "Comma-separated list of bootstrap nodes")
-		enablePlayground = flag.Bool("playground", true, "Enable GraphQL Playground")
+		enablePlayground = flag.Bool("playground", false, "Enable GraphQL Playground")
 		logLevel         = flag.String("log-level", "info", "Log level (debug, info, warn, error)")
 	)
 	flag.Parse()
@@ -61,12 +61,19 @@ func main() {
 	transport.OnStream = server.OnStream
 
 	// Initialize GraphQL server
+	authToken := os.Getenv("SHUGO_AUTH_TOKEN")
+	if authToken == "" {
+		logger.Error("SHUGO_AUTH_TOKEN is required")
+		os.Exit(1)
+	}
+
 	config := &graphql.Config{
 		Port:             *port,
 		PlaygroundPath:   "/playground",
 		GraphQLPath:      "/graphql",
-		AllowedOrigins:   []string{"*"},
+		AllowedOrigins:   nil,
 		EnablePlayground: *enablePlayground,
+		AuthToken:        authToken,
 	}
 
 	graphqlServer := graphql.NewServer(server, config)

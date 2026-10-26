@@ -120,16 +120,14 @@ func HashKey(key string) string {
 	return hex.EncodeToString(hash[:])
 }
 
-// NewEncryptionKey is deprecated - use KeyManager instead
-// This is kept for backward compatibility
-func NewEncryptionKey() []byte {
+// NewEncryptionKey is deprecated - use KeyManager instead.
+// This is kept for backward compatibility.
+func NewEncryptionKey() ([]byte, error) {
 	keyBuf := make([]byte, 32)
 	if _, err := io.ReadFull(rand.Reader, keyBuf); err != nil {
-		// Fallback to deterministic key if random generation fails
-		// This is not ideal but prevents panic
-		return []byte("fallback-key-32-bytes-long-12345")
+		return nil, fmt.Errorf("generate encryption key: %w", err)
 	}
-	return keyBuf
+	return keyBuf, nil
 }
 
 const (

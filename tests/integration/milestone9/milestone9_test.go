@@ -164,6 +164,7 @@ func TestBlockchainIntegration(t *testing.T) {
 	}
 
 	// Test creating an identity
+	t.Setenv("SHUGO_WALLET_KEY", "test-wallet-key")
 	identity, err := blockchainIntegration.CreateIdentity(ctx, "test-network")
 	if err != nil {
 		t.Fatalf("Failed to create identity: %v", err)

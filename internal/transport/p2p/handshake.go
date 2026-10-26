@@ -27,11 +27,9 @@ type HandshakeMessage struct {
 // AuthenticatedHandshakeFunc creates a handshake function that verifies peer identity
 func AuthenticatedHandshakeFunc(nodeID string) HandshakeFunc {
 	return func(peer Peer) error {
-		// Get auth token from environment
 		authToken := os.Getenv("SHUGO_AUTH_TOKEN")
 		if authToken == "" {
-			// For demo purposes, use a default token if not set
-			authToken = "demo-auth-token-2024"
+			return fmt.Errorf("SHUGO_AUTH_TOKEN is required")
 		}
 
 		// Create handshake message

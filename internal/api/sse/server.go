@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/Skpow1234/Shugo/internal/app/fileserver"
+	"github.com/Skpow1234/Shugo/internal/httpsecure"
 )
 
 // Server represents the SSE API server
@@ -38,7 +39,7 @@ func DefaultConfig() *Config {
 	return &Config{
 		Port:              8084,
 		Host:              "localhost",
-		AllowedOrigins:    []string{"*"},
+		AllowedOrigins:    nil,
 		EnableCORS:        true,
 		ReadTimeout:       30 * time.Second,
 		WriteTimeout:      30 * time.Second,
@@ -100,24 +101,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 // addCORSHeaders adds CORS headers to the response
 func (s *Server) addCORSHeaders(w http.ResponseWriter, r *http.Request) {
-	origin := r.Header.Get("Origin")
-
-	// Check if origin is allowed
-	allowed := false
-	for _, allowedOrigin := range s.config.AllowedOrigins {
-		if allowedOrigin == "*" || allowedOrigin == origin {
-			allowed = true
-			break
-		}
-	}
-
-	if allowed {
-		w.Header().Set("Access-Control-Allow-Origin", origin)
-	}
-
-	w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-	w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, Cache-Control")
-	w.Header().Set("Access-Control-Allow-Credentials", "true")
+	httpsecure.SetCORS(w, r, s.config.AllowedOrigins)
 }
 
 // handleSSE handles Server-Sent Events connections

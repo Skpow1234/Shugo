@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
-	"strings"
+	"os"
 
 	"github.com/improbable-eng/grpc-web/go/grpcweb"
 	"google.golang.org/grpc"
@@ -14,6 +14,7 @@ import (
 	"google.golang.org/grpc/status"
 
 	grpcapi "github.com/Skpow1234/Shugo/internal/api/grpc"
+	"github.com/Skpow1234/Shugo/internal/httpsecure"
 	"github.com/Skpow1234/Shugo/proto/shugo"
 )
 
@@ -44,7 +45,7 @@ func DefaultConfig() *Config {
 			"https://localhost:8080",
 		},
 		CORSEnabled: true,
-		AuthToken:   "your-secret-token",
+		AuthToken:   os.Getenv("SHUGO_AUTH_TOKEN"),
 	}
 }
 
@@ -90,6 +91,9 @@ func NewWebServer(config *Config, logger *slog.Logger) *WebServer {
 
 // Start starts the gRPC-Web server
 func (s *WebServer) Start() error {
+	if s.config.AuthToken == "" {
+		return fmt.Errorf("SHUGO_AUTH_TOKEN is required")
+	}
 	s.logger.Info("Starting gRPC-Web server", "port", s.config.Port)
 
 	httpServer := &http.Server{
@@ -97,7 +101,7 @@ func (s *WebServer) Start() error {
 		Handler: s.createHTTPHandler(),
 	}
 
-	return httpServer.ListenAndServe()
+	return httpsecure.ListenAndServe(httpServer)
 }
 
 // Stop stops the gRPC-Web server gracefully
@@ -183,8 +187,8 @@ func unaryAuthInterceptor(authToken string) grpc.UnaryServerInterceptor {
 		}
 
 		// Check if token matches
-		token := strings.TrimPrefix(authHeader[0], "Bearer ")
-		if token != authToken {
+		tokenHeader := authHeader[0]
+		if !httpsecure.AuthorizeBearer(tokenHeader, authToken) {
 			return nil, status.Error(codes.Unauthenticated, "invalid token")
 		}
 
@@ -207,8 +211,8 @@ func streamAuthInterceptor(authToken string) grpc.StreamServerInterceptor {
 		}
 
 		// Check if token matches
-		token := strings.TrimPrefix(authHeader[0], "Bearer ")
-		if token != authToken {
+		tokenHeader := authHeader[0]
+		if !httpsecure.AuthorizeBearer(tokenHeader, authToken) {
 			return status.Error(codes.Unauthenticated, "invalid token")
 		}
 

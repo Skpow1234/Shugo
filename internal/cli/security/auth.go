@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"net/url"
 	"os"
 	"path/filepath"
 	"time"
@@ -191,15 +192,23 @@ func (am *AuthManager) EnableMFA(userID string) (string, error) {
 		return "", fmt.Errorf("user not found")
 	}
 
-	// Generate MFA secret (simplified - in real implementation, use proper TOTP library)
-	secret := am.generateID()
+	secret, err := generateTOTPSecret()
+	if err != nil {
+		return "", err
+	}
 
 	user.MFAEnabled = true
 	user.MFASecret = secret
-	_ = am.saveUsers() // Ignore error for demo purposes
+	if err := am.saveUsers(); err != nil {
+		return "", fmt.Errorf("save mfa secret: %w", err)
+	}
 
-	// Return a placeholder URL - in real implementation, this would be a proper QR code URL
-	qrURL := fmt.Sprintf("otpauth://totp/Shugo:%s?secret=%s&issuer=Shugo", user.Username, secret)
+	qrURL := fmt.Sprintf(
+		"otpauth://totp/Shugo:%s?secret=%s&issuer=Shugo&algorithm=SHA256&digits=6&period=%d",
+		url.QueryEscape(user.Username),
+		secret,
+		totpStep,
+	)
 
 	return qrURL, nil
 }
@@ -215,18 +224,8 @@ func (am *AuthManager) VerifyMFA(userID, token string) error {
 		return fmt.Errorf("MFA not enabled for user")
 	}
 
-	// Simplified MFA verification - in real implementation, use proper TOTP validation
-	// For demo purposes, accept any 6-digit token
-	if len(token) != 6 {
-		return fmt.Errorf("invalid MFA token format")
-	}
-
-	// In a real implementation, you would validate the TOTP token here
-	// For now, we'll just check if it's a 6-digit number
-	for _, char := range token {
-		if char < '0' || char > '9' {
-			return fmt.Errorf("invalid MFA token")
-		}
+	if !verifyTOTP(user.MFASecret, token, time.Now()) {
+		return fmt.Errorf("invalid MFA token")
 	}
 
 	return nil

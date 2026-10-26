@@ -9,6 +9,7 @@ services:
       - "8080:8080"
     environment:
       - LOG_LEVEL=info
+      - SHUGO_AUTH_TOKEN=${SHUGO_AUTH_TOKEN}
     command: ["--port", "8080"]
     volumes:
       - shugo-rest-data:/app/data
@@ -26,7 +27,8 @@ services:
       - "8082:8082"
     environment:
       - LOG_LEVEL=info
-    command: ["--port", "8082", "--auth-token", "demo-token"]
+      - SHUGO_AUTH_TOKEN=${SHUGO_AUTH_TOKEN}
+    command: ["--port", "8082"]
     volumes:
       - shugo-grpc-data:/app/data
     networks:
@@ -43,6 +45,7 @@ services:
       - "8081:8081"
     environment:
       - LOG_LEVEL=info
+      - SHUGO_AUTH_TOKEN=${SHUGO_AUTH_TOKEN}
     command: ["--port", "8081"]
     volumes:
       - shugo-graphql-data:/app/data
@@ -60,6 +63,7 @@ services:
       - "3000:3000"
     environment:
       - LOG_LEVEL=info
+      - SHUGO_AUTH_TOKEN=${SHUGO_AUTH_TOKEN}
     command: ["--listen", ":3000", "--log-level", "info"]
     volumes:
       - shugo-node1-data:/app/data
@@ -77,6 +81,7 @@ services:
       - "7000:7000"
     environment:
       - LOG_LEVEL=info
+      - SHUGO_AUTH_TOKEN=${SHUGO_AUTH_TOKEN}
     command: ["--listen", ":7000", "--log-level", "info"]
     volumes:
       - shugo-node2-data:/app/data
@@ -94,6 +99,7 @@ services:
       - "5000:5000"
     environment:
       - LOG_LEVEL=info
+      - SHUGO_AUTH_TOKEN=${SHUGO_AUTH_TOKEN}
     command: [
       "--listen", ":5000",
       "--bootstrap", "shugo-node1:3000,shugo-node2:7000",

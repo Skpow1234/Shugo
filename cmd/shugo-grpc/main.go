@@ -18,7 +18,7 @@ import (
 
 func main() {
 	port := flag.String("port", "8082", "HTTP/JSON API port (temporary gRPC facade)")
-	authToken := flag.String("auth-token", "demo-token", "Authentication token")
+	authToken := flag.String("auth-token", "", "Authentication token, or set SHUGO_AUTH_TOKEN")
 	listen := flag.String("listen", ":3020", "P2P listen address for embedded fileserver")
 	storageRoot := flag.String("storage", "shugo-grpc-storage", "Storage root")
 	flag.Parse()
@@ -54,9 +54,17 @@ func main() {
 		}
 	}()
 
+	token := *authToken
+	if token == "" {
+		token = os.Getenv("SHUGO_AUTH_TOKEN")
+	}
+	if token == "" {
+		logger.Error("authentication token required: set --auth-token or SHUGO_AUTH_TOKEN")
+		os.Exit(1)
+	}
 	config := grpc.DefaultConfig()
 	config.Port = ":" + *port
-	config.AuthToken = *authToken
+	config.AuthToken = token
 	server := grpc.NewServer(config, logger, fsServer)
 
 	ctx, cancel := context.WithCancel(context.Background())

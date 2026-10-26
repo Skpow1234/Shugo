@@ -37,8 +37,11 @@ func TestCopyEncryptDecrypt(t *testing.T) {
 	payload := "Foo not bar"
 	src := bytes.NewReader([]byte(payload))
 	dst := new(bytes.Buffer)
-	key := internalcrypto.NewEncryptionKey()
-	_, err := internalcrypto.CopyEncrypt(key, src, dst)
+	key, err := internalcrypto.NewEncryptionKey()
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = internalcrypto.CopyEncrypt(key, src, dst)
 	if err != nil {
 		t.Error(err)
 	}

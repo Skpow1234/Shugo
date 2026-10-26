@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/Skpow1234/Shugo/internal/app/fileserver"
+	"github.com/Skpow1234/Shugo/internal/httpsecure"
 )
 
 // Server represents the protocol translation server
@@ -251,7 +252,7 @@ func (s *Server) ServeHTTP(ctx context.Context, addr string) error {
 		}
 	}()
 
-	return server.ListenAndServe()
+	return httpsecure.ListenAndServe(server)
 }
 
 // handleTranslate handles general translation requests

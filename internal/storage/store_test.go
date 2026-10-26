@@ -113,6 +113,13 @@ func TestAtomicFileCreation(t *testing.T) {
 	assert.Equal(t, data, content)
 }
 
+func TestStoreRejectsPathEscape(t *testing.T) {
+	s := NewStore(StoreOpts{Root: t.TempDir()})
+	if _, err := s.writeStream("../outside", bytes.NewReader([]byte("nope"))); err == nil {
+		t.Fatal("expected a storage key that escapes the root to be rejected")
+	}
+}
+
 func teardown(t *testing.T, s *Store) {
 	// On Windows, file handles may not be immediately released
 	// Skip teardown to avoid test failures

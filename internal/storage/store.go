@@ -72,24 +72,31 @@ func NewStore(opts StoreOpts) *Store {
 }
 
 func (s *Store) Has(key string) bool {
-	pathKey := s.PathTransformFunc(key)
-	fullPathWithRoot := fmt.Sprintf("%s/%s", s.Root, pathKey.FullPath())
-	_, err := os.Stat(fullPathWithRoot)
+	fullPathWithRoot, err := s.fullPath(key)
+	if err != nil {
+		return false
+	}
+	_, err = os.Stat(fullPathWithRoot)
 	return !errors.Is(err, os.ErrNotExist)
 }
 
 func (s *Store) Clear() error { return os.RemoveAll(s.Root) }
 
 func (s *Store) Delete(key string) error {
-	pathKey := s.PathTransformFunc(key)
-	fullPathWithRoot := filepath.Join(s.Root, filepath.FromSlash(pathKey.FullPath()))
-	defer func() { slog.Info("deleted", slog.String("key", pathKey.Filename)) }()
+	fullPathWithRoot, err := s.fullPath(key)
+	if err != nil {
+		return err
+	}
+	root, err := filepath.Abs(s.Root)
+	if err != nil {
+		return err
+	}
+	defer func() { slog.Info("deleted", slog.String("key", filepath.Base(fullPathWithRoot))) }()
 	if err := os.Remove(fullPathWithRoot); err != nil {
 		return err
 	}
-	// Best-effort cleanup of empty parent directories under the CAS fan-out.
 	dir := filepath.Dir(fullPathWithRoot)
-	for dir != s.Root && strings.HasPrefix(dir, s.Root) {
+	for dir != root && strings.HasPrefix(dir, root+string(filepath.Separator)) {
 		if err := os.Remove(dir); err != nil {
 			break
 		}
@@ -119,7 +126,7 @@ func (s *Store) WriteDecrypt(copyDecrypt func([]byte, io.Reader, io.Writer) (int
 func (s *Store) createFileAtomic(fullPath string) (*os.File, error) {
 	// Create the directory first
 	dir := filepath.Dir(fullPath)
-	if err := os.MkdirAll(dir, os.ModePerm); err != nil {
+	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return nil, fmt.Errorf("failed to create directory %s: %w", dir, err)
 	}
 
@@ -138,10 +145,10 @@ func (s *Store) createFileAtomic(fullPath string) (*os.File, error) {
 }
 
 func (s *Store) openFileForWriting(key string) (*os.File, error) {
-	pathKey := s.PathTransformFunc(key)
-	fullPathWithRoot := fmt.Sprintf("%s/%s", s.Root, pathKey.FullPath())
-
-	// Use atomic file creation to avoid race conditions
+	fullPathWithRoot, err := s.fullPath(key)
+	if err != nil {
+		return nil, err
+	}
 	return s.createFileAtomic(fullPathWithRoot)
 }
 
@@ -161,8 +168,10 @@ func (s *Store) writeStream(key string, r io.Reader) (int64, error) {
 func (s *Store) Read(key string) (int64, io.ReadCloser, error) { return s.readStream(key) }
 
 func (s *Store) readStream(key string) (int64, io.ReadCloser, error) {
-	pathKey := s.PathTransformFunc(key)
-	fullPathWithRoot := fmt.Sprintf("%s/%s", s.Root, pathKey.FullPath())
+	fullPathWithRoot, err := s.fullPath(key)
+	if err != nil {
+		return 0, nil, err
+	}
 	file, err := os.Open(fullPathWithRoot)
 	if err != nil {
 		return 0, nil, err
@@ -175,4 +184,22 @@ func (s *Store) readStream(key string) (int64, io.ReadCloser, error) {
 		return 0, nil, err
 	}
 	return fi.Size(), file, nil
+}
+
+func (s *Store) fullPath(key string) (string, error) {
+	pathKey := s.PathTransformFunc(key)
+	rel := filepath.Clean(filepath.FromSlash(pathKey.FullPath()))
+	if rel == "." || rel == "" || filepath.IsAbs(rel) {
+		return "", fmt.Errorf("invalid storage key")
+	}
+	root, err := filepath.Abs(s.Root)
+	if err != nil {
+		return "", err
+	}
+	full := filepath.Clean(filepath.Join(root, rel))
+	relToRoot, err := filepath.Rel(root, full)
+	if err != nil || relToRoot == ".." || strings.HasPrefix(relToRoot, ".."+string(filepath.Separator)) {
+		return "", fmt.Errorf("storage key escapes root")
+	}
+	return full, nil
 }

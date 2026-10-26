@@ -3,6 +3,7 @@ package grpc_test
 import (
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -78,7 +79,7 @@ func TestGRPCConfig(t *testing.T) {
 	config := grpc.DefaultConfig()
 	assert.NotNil(t, config)
 	assert.Equal(t, ":50051", config.Port)
-	assert.Equal(t, "your-secret-token", config.AuthToken)
+	assert.Equal(t, os.Getenv("SHUGO_AUTH_TOKEN"), config.AuthToken)
 
 	// Test custom config
 	customConfig := &grpc.Config{

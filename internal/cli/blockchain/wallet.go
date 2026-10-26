@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/Skpow1234/Shugo/internal/cli/client"
+	shugocrypto "github.com/Skpow1234/Shugo/internal/crypto"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/google/uuid"
 )
@@ -155,13 +156,17 @@ func (wm *WalletManager) CreateWallet(ctx context.Context, name, currency, netwo
 	wm.wallets[wallet.ID] = wallet
 
 	// Simulate API call - store wallet data as JSON
-	walletData, err := json.Marshal(wallet)
+	stored, err := sealedWalletCopy(wallet)
+	if err != nil {
+		return nil, err
+	}
+	walletData, err := json.Marshal(stored)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal wallet: %v", err)
 	}
 
 	tempFilePath := filepath.Join(wm.configDir, fmt.Sprintf("wallets/%s.json", wallet.ID))
-	if err := os.WriteFile(tempFilePath, walletData, 0644); err != nil {
+	if err := os.WriteFile(tempFilePath, walletData, 0o600); err != nil {
 		return nil, fmt.Errorf("failed to write wallet data to temp file: %v", err)
 	}
 	defer func() { _ = os.Remove(tempFilePath) }() // Clean up temp file
@@ -355,6 +360,11 @@ func (wm *WalletManager) loadWallets() error {
 	}
 
 	for _, wallet := range wallets {
+		plain, err := shugocrypto.OpenString(wallet.PrivateKey)
+		if err != nil {
+			return err
+		}
+		wallet.PrivateKey = plain
 		wm.wallets[wallet.ID] = wallet
 	}
 	return nil
@@ -365,7 +375,11 @@ func (wm *WalletManager) saveWallets() error {
 
 	var wallets []*Wallet
 	for _, wallet := range wm.wallets {
-		wallets = append(wallets, wallet)
+		stored, err := sealedWalletCopy(wallet)
+		if err != nil {
+			return err
+		}
+		wallets = append(wallets, stored)
 	}
 
 	data, err := json.MarshalIndent(wallets, "", "  ")
@@ -373,7 +387,7 @@ func (wm *WalletManager) saveWallets() error {
 		return fmt.Errorf("failed to marshal wallets: %w", err)
 	}
 
-	return os.WriteFile(walletsFile, data, 0644)
+	return os.WriteFile(walletsFile, data, 0o600)
 }
 
 func (wm *WalletManager) loadTransactions() error {
@@ -443,4 +457,14 @@ func (wm *WalletManager) saveStats() error {
 	}
 
 	return os.WriteFile(statsFile, data, 0644)
+}
+
+func sealedWalletCopy(wallet *Wallet) (*Wallet, error) {
+	stored := *wallet
+	sealed, err := shugocrypto.SealString(wallet.PrivateKey)
+	if err != nil {
+		return nil, fmt.Errorf("encrypt wallet key: %w", err)
+	}
+	stored.PrivateKey = sealed
+	return &stored, nil
 }

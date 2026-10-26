@@ -14,6 +14,7 @@ import (
 	"github.com/Skpow1234/Shugo/internal/api/graphql/resolvers"
 	"github.com/Skpow1234/Shugo/internal/api/graphql/subscriptions"
 	"github.com/Skpow1234/Shugo/internal/app/fileserver"
+	"github.com/Skpow1234/Shugo/internal/httpsecure"
 	"github.com/Skpow1234/Shugo/internal/websocket"
 )
 
@@ -38,6 +39,7 @@ type Config struct {
 	AllowedOrigins   []string
 	EnablePlayground bool
 	EnableWebSocket  bool
+	AuthToken        string
 }
 
 // DefaultConfig returns the default configuration
@@ -47,9 +49,10 @@ func DefaultConfig() *Config {
 		PlaygroundPath:   "/playground",
 		GraphQLPath:      "/graphql",
 		WebSocketPath:    "/ws",
-		AllowedOrigins:   []string{"*"},
-		EnablePlayground: true,
+		AllowedOrigins:   nil,
+		EnablePlayground: false,
 		EnableWebSocket:  true,
+		AuthToken:        os.Getenv("SHUGO_AUTH_TOKEN"),
 	}
 }
 
@@ -84,30 +87,28 @@ func NewServer(fileserver *fileserver.Server, config *Config) *Server {
 // Start starts the GraphQL server
 func (s *Server) Start(config *Config) error {
 	if config == nil {
+		config = s.config
+	}
+	if config == nil {
 		config = DefaultConfig()
 	}
+	s.config = config
 
 	mux := http.NewServeMux()
 
-	// GraphQL endpoint
 	mux.HandleFunc(config.GraphQLPath, s.CORSMiddleware(s.GraphQLHandler))
 
-	// WebSocket endpoint for GraphQL subscriptions
 	if config.EnableWebSocket {
 		wsHandler := websocket.NewGraphQLSubscriptionHandler(s.hub, s.logger)
-		mux.HandleFunc(config.WebSocketPath, s.CORSMiddleware(wsHandler.ServeHTTP))
+		mux.HandleFunc(config.WebSocketPath, s.CORSMiddleware(s.requireAuth(wsHandler.ServeHTTP)))
 	}
 
-	// GraphQL Playground
 	if config.EnablePlayground {
 		mux.HandleFunc(config.PlaygroundPath, s.CORSMiddleware(s.PlaygroundHandler))
 	}
 
-	// Health check endpoint
 	mux.HandleFunc("/health", s.HealthHandler)
-
-	// Metrics endpoint
-	mux.HandleFunc("/metrics", s.MetricsHandler)
+	mux.HandleFunc("/metrics", s.CORSMiddleware(s.MetricsHandler))
 
 	s.logger.Info("Starting GraphQL server",
 		"port", config.Port,
@@ -125,22 +126,31 @@ func (s *Server) Start(config *Config) error {
 		WriteTimeout:      30 * time.Second,
 		IdleTimeout:       60 * time.Second,
 	}
-	return server.ListenAndServe()
+	if s.config.AuthToken == "" {
+		return fmt.Errorf("SHUGO_AUTH_TOKEN is required")
+	}
+	return httpsecure.ListenAndServe(server)
 }
 
 // CORSMiddleware adds CORS headers to responses
 func (s *Server) CORSMiddleware(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Access-Control-Allow-Origin", "*")
-		w.Header().Set("Access-Control-Allow-Methods", "POST, GET, OPTIONS, PUT, DELETE")
-		w.Header().Set("Access-Control-Allow-Headers", "Accept, Authorization, Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization")
-
+		httpsecure.SetCORS(w, r, s.config.AllowedOrigins)
 		if r.Method == "OPTIONS" {
 			w.WriteHeader(http.StatusOK)
 			return
 		}
-
 		next.ServeHTTP(w, r)
+	}
+}
+
+func (s *Server) requireAuth(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if !httpsecure.AuthorizeBearer(r.Header.Get("Authorization"), s.config.AuthToken) {
+			http.Error(w, "unauthorized", http.StatusUnauthorized)
+			return
+		}
+		next(w, r)
 	}
 }
 
@@ -174,6 +184,10 @@ type ErrorLocation struct {
 // GraphQLHandler handles GraphQL requests via the fileserver-backed resolver.
 // This is a lightweight dispatcher (full schema engine still pending).
 func (s *Server) GraphQLHandler(w http.ResponseWriter, r *http.Request) {
+	if !httpsecure.AuthorizeBearer(r.Header.Get("Authorization"), s.config.AuthToken) {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
 	if r.Method != "POST" {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
@@ -285,23 +299,19 @@ func equalFoldASCII(a, b string) bool {
 
 // PlaygroundHandler serves the GraphQL Playground
 func (s *Server) PlaygroundHandler(w http.ResponseWriter, r *http.Request) {
-	playgroundHTML := `
-<!DOCTYPE html>
-<html>
+	if !httpsecure.AuthorizeBearer(r.Header.Get("Authorization"), s.config.AuthToken) {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+	playgroundHTML := `<!DOCTYPE html>
+<html lang="en">
 <head>
-    <title>GraphQL Playground</title>
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/graphql-playground-react@1.7.42/build/static/css/index.css" />
-    <script src="https://cdn.jsdelivr.net/npm/graphql-playground-react@1.7.42/build/static/js/middleware.js"></script>
+    <meta charset="utf-8" />
+    <title>Shugo GraphQL</title>
 </head>
 <body>
-    <div id="root"></div>
-    <script>
-        window.addEventListener('load', function (event) {
-            GraphQLPlayground.init(document.getElementById('root'), {
-                endpoint: '/graphql'
-            })
-        })
-    </script>
+    <h1>Shugo GraphQL</h1>
+    <p>Send authorized POST requests to /graphql.</p>
 </body>
 </html>`
 
@@ -327,6 +337,10 @@ func (s *Server) HealthHandler(w http.ResponseWriter, r *http.Request) {
 
 // MetricsHandler handles metrics requests
 func (s *Server) MetricsHandler(w http.ResponseWriter, r *http.Request) {
+	if !httpsecure.AuthorizeBearer(r.Header.Get("Authorization"), s.config.AuthToken) {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
 	w.Header().Set("Content-Type", "application/json")
 	peers, files := 0, 0
 	if s.server != nil {
@@ -347,6 +361,10 @@ func (s *Server) MetricsHandler(w http.ResponseWriter, r *http.Request) {
 
 // HandleFileUpload handles file upload requests
 func (s *Server) HandleFileUpload(w http.ResponseWriter, r *http.Request) {
+	if !httpsecure.AuthorizeBearer(r.Header.Get("Authorization"), s.config.AuthToken) {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
 	if r.Method != "POST" {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return

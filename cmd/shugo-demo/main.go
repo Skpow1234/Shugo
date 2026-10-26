@@ -60,9 +60,13 @@ func createDemoClient(targetNode, bootstrapNodes string) *fs.Server {
 		bootstrapList = []string{bootstrapNodes}
 	}
 
+	encKey, err := crypto.NewEncryptionKey()
+	if err != nil {
+		log.Fatalf("encryption key: %v", err)
+	}
 	fileServerOpts := fs.Options{
 		ID:                nodeID,
-		EncKey:            crypto.NewEncryptionKey(),
+		EncKey:            encKey,
 		StorageRoot:       "demo-client-data",
 		PathTransformFunc: storage.CASPathTransformFunc,
 		Transport:         tcpTransport,

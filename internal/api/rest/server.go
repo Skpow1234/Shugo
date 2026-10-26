@@ -2,8 +2,10 @@ package rest
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/Skpow1234/Shugo/internal/api/analytics"
@@ -13,48 +15,49 @@ import (
 	"github.com/Skpow1234/Shugo/internal/api/rest/ratelimit"
 	"github.com/Skpow1234/Shugo/internal/api/rest/versioning"
 	"github.com/Skpow1234/Shugo/internal/app/fileserver"
+	"github.com/Skpow1234/Shugo/internal/httpsecure"
 )
 
 type Server struct {
-	config             *Config
-	logger             *slog.Logger
-	httpServer         *http.Server
-	rateLimiter        *ratelimit.RateLimiter
-	analyticsService   *analytics.Service
-	analyticsHandler   *analytics.Handler
-	monitoringService  *monitoring.Service
-	monitoringHandler  *monitoring.Handler
-	FileEndpoints      *endpoints.FileEndpoints
-	PeerEndpoints      *endpoints.PeerEndpoints
-	SystemEndpoints    *endpoints.SystemEndpoints
+	config            *Config
+	logger            *slog.Logger
+	httpServer        *http.Server
+	rateLimiter       *ratelimit.RateLimiter
+	analyticsService  *analytics.Service
+	analyticsHandler  *analytics.Handler
+	monitoringService *monitoring.Service
+	monitoringHandler *monitoring.Handler
+	FileEndpoints     *endpoints.FileEndpoints
+	PeerEndpoints     *endpoints.PeerEndpoints
+	SystemEndpoints   *endpoints.SystemEndpoints
 }
 
 type Config struct {
-	Port              string
-	ReadTimeout       time.Duration
-	WriteTimeout      time.Duration
-	MaxHeaderBytes    int
-	AllowedOrigins    []string
-	RateLimitPerMin   int
-	AuthToken         string
-	VersionConfig     *versioning.VersionConfig
-	RateLimitConfig   *ratelimit.RateLimitConfig
-	AnalyticsConfig   *analytics.Config
-	MonitoringConfig  *monitoring.MonitoringConfig
+	Port             string
+	ReadTimeout      time.Duration
+	WriteTimeout     time.Duration
+	MaxHeaderBytes   int
+	AllowedOrigins   []string
+	RateLimitPerMin  int
+	AuthToken        string
+	VersionConfig    *versioning.VersionConfig
+	RateLimitConfig  *ratelimit.RateLimitConfig
+	AnalyticsConfig  *analytics.Config
+	MonitoringConfig *monitoring.MonitoringConfig
 }
 
 func DefaultConfig() *Config {
 	return &Config{
-		Port:            ":8081",
-		ReadTimeout:     15 * time.Second,
-		WriteTimeout:    15 * time.Second,
-		MaxHeaderBytes:  1 << 20,
-		AllowedOrigins:  []string{"*"},
-		RateLimitPerMin: 100,
-		AuthToken:       "demo-token",
-		VersionConfig:   versioning.NewVersionConfig(),
-		RateLimitConfig: ratelimit.DefaultConfig(),
-		AnalyticsConfig: analytics.DefaultConfig(),
+		Port:             ":8081",
+		ReadTimeout:      15 * time.Second,
+		WriteTimeout:     15 * time.Second,
+		MaxHeaderBytes:   1 << 20,
+		AllowedOrigins:   []string{"http://localhost:3000"},
+		RateLimitPerMin:  100,
+		AuthToken:        os.Getenv("SHUGO_AUTH_TOKEN"),
+		VersionConfig:    versioning.NewVersionConfig(),
+		RateLimitConfig:  ratelimit.DefaultConfig(),
+		AnalyticsConfig:  analytics.DefaultConfig(),
 		MonitoringConfig: monitoring.DefaultConfig(),
 	}
 }
@@ -105,7 +108,7 @@ func (s *Server) Start() error {
 	rateLimitMiddleware := s.rateLimiter.Middleware()
 	analyticsMiddleware := analytics.Middleware(s.analyticsService, s.logger)
 	monitoringMiddleware := monitoring.Middleware(s.monitoringService, s.logger)
-	
+
 	handler := s.CORSMiddleware(
 		monitoringMiddleware(
 			analyticsMiddleware(
@@ -177,7 +180,10 @@ func (s *Server) Start() error {
 		"port", s.config.Port,
 		"analytics_enabled", s.config.AnalyticsConfig.Enabled,
 		"monitoring_enabled", s.config.MonitoringConfig.Enabled)
-	return s.httpServer.ListenAndServe()
+	if s.config.AuthToken == "" {
+		return fmt.Errorf("SHUGO_AUTH_TOKEN is required")
+	}
+	return httpsecure.ListenAndServe(s.httpServer)
 }
 
 // GetAnalyticsService exposes the analytics service for tests and integrations.
@@ -199,19 +205,7 @@ func (s *Server) Stop(ctx context.Context) error {
 
 func (s *Server) CORSMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		origin := r.Header.Get("Origin")
-		if origin != "" {
-			for _, allowedOrigin := range s.config.AllowedOrigins {
-				if allowedOrigin == "*" || allowedOrigin == origin {
-					w.Header().Set("Access-Control-Allow-Origin", origin)
-					break
-				}
-			}
-		}
-
-		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
-		w.Header().Set("Access-Control-Allow-Credentials", "true")
+		httpsecure.SetCORS(w, r, s.config.AllowedOrigins)
 
 		if r.Method == "OPTIONS" {
 			w.WriteHeader(http.StatusOK)
@@ -231,13 +225,7 @@ func (s *Server) authMiddleware(next http.Handler) http.Handler {
 		}
 
 		authHeader := r.Header.Get("Authorization")
-		if authHeader == "" {
-			http.Error(w, "Missing authorization header", http.StatusUnauthorized)
-			return
-		}
-
-		expectedToken := "Bearer " + s.config.AuthToken
-		if authHeader != expectedToken {
+		if !httpsecure.AuthorizeBearer(authHeader, s.config.AuthToken) {
 			http.Error(w, "Invalid authorization token", http.StatusUnauthorized)
 			return
 		}

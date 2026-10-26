@@ -8,6 +8,8 @@ import (
 	"net/http"
 	"os"
 	"time"
+
+	"github.com/Skpow1234/Shugo/internal/httpsecure"
 )
 
 // FederationServer represents a GraphQL federation server
@@ -69,21 +71,17 @@ func (fs *FederationServer) Start(ctx context.Context) error {
 		IdleTimeout:       60 * time.Second,
 	}
 
-	return server.ListenAndServe()
+	return httpsecure.ListenAndServe(server)
 }
 
 // CORSMiddleware adds CORS headers to responses
 func (fs *FederationServer) CORSMiddleware(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Access-Control-Allow-Origin", "*")
-		w.Header().Set("Access-Control-Allow-Methods", "POST, GET, OPTIONS, PUT, DELETE")
-		w.Header().Set("Access-Control-Allow-Headers", "Accept, Authorization, Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization")
-
+		httpsecure.SetCORS(w, r, nil)
 		if r.Method == "OPTIONS" {
 			w.WriteHeader(http.StatusOK)
 			return
 		}
-
 		next.ServeHTTP(w, r)
 	}
 }

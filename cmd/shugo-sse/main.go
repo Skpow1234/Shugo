@@ -14,6 +14,7 @@ import (
 	"github.com/Skpow1234/Shugo/internal/api/sse"
 	fs "github.com/Skpow1234/Shugo/internal/app/fileserver"
 	"github.com/Skpow1234/Shugo/internal/crypto"
+	"github.com/Skpow1234/Shugo/internal/httpsecure"
 	"github.com/Skpow1234/Shugo/internal/peer"
 	"github.com/Skpow1234/Shugo/internal/storage"
 	netp2p "github.com/Skpow1234/Shugo/internal/transport/p2p"
@@ -46,7 +47,7 @@ func main() {
 	sseConfig := &sse.Config{
 		Port:              *port,
 		Host:              *host,
-		AllowedOrigins:    []string{"*"}, // TODO: Make configurable
+		AllowedOrigins:    []string{},
 		EnableCORS:        true,
 		ReadTimeout:       30 * time.Second,
 		WriteTimeout:      30 * time.Second,
@@ -77,7 +78,7 @@ func main() {
 			},
 		)
 
-		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+		if err := httpsecure.ListenAndServe(server); err != nil && err != http.ErrServerClosed {
 			logger.Error("SSE server failed", "error", err)
 			os.Exit(1)
 		}
@@ -104,7 +105,7 @@ func main() {
 }
 
 // createFileServer creates a file server instance for the SSE API
-func createFileServer(listenAddr string, _ *slog.Logger) *fs.Server {
+func createFileServer(listenAddr string, logger *slog.Logger) *fs.Server {
 	// Generate a unique node ID for this server
 	nodeID := crypto.GenerateID()
 
@@ -114,9 +115,14 @@ func createFileServer(listenAddr string, _ *slog.Logger) *fs.Server {
 		Decoder:       netp2p.LengthPrefixedDecoder{},
 	}
 	tcpTransport := netp2p.NewTCPTransport(tcptransportOpts)
+	encKey, err := crypto.NewEncryptionKey()
+	if err != nil {
+		logger.Error("failed to generate encryption key", "error", err)
+		os.Exit(1)
+	}
 	fileServerOpts := fs.Options{
 		ID:                nodeID,
-		EncKey:            crypto.NewEncryptionKey(),
+		EncKey:            encKey,
 		StorageRoot:       storage.SanitizeStorageRootFromAddr(listenAddr),
 		PathTransformFunc: storage.CASPathTransformFunc,
 		Transport:         tcpTransport,

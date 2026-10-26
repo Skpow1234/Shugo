@@ -9,7 +9,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"net"
 	"net/http"
+	"net/url"
+	"strings"
 	"sync"
 	"time"
 )
@@ -76,6 +79,7 @@ type ManagerConfig struct {
 	DeliveryTimeout time.Duration
 	SignatureHeader string
 	RetryConfig     *RetryConfig
+	AllowLoopback   bool
 }
 
 // NewManager creates a new webhook manager
@@ -109,6 +113,10 @@ func NewManager(config *ManagerConfig, logger *slog.Logger) *WebhookManager {
 
 // RegisterWebhook registers a new webhook
 func (wm *WebhookManager) RegisterWebhook(id string, config *WebhookConfig) error {
+	if err := validateWebhookURL(config.URL, wm.config.AllowLoopback); err != nil {
+		return err
+	}
+
 	wm.mu.Lock()
 	defer wm.mu.Unlock()
 
@@ -275,6 +283,9 @@ func (wm *WebhookManager) attemptDelivery(deliveryID, webhookID string, webhook 
 
 	// Add custom headers
 	for key, value := range webhook.Headers {
+		if !safeWebhookHeader(key, value) {
+			continue
+		}
 		req.Header.Set(key, value)
 	}
 
@@ -285,7 +296,7 @@ func (wm *WebhookManager) attemptDelivery(deliveryID, webhookID string, webhook 
 	}
 
 	// Execute request
-	client := &http.Client{Timeout: wm.config.DeliveryTimeout}
+	client := newWebhookClient(wm.config.DeliveryTimeout, wm.config.AllowLoopback)
 	resp, err := client.Do(req)
 	duration := time.Since(start)
 
@@ -443,4 +454,85 @@ func (wm *WebhookManager) ValidateWebhookSignature(webhookID string, payload []b
 
 	expectedSignature := wm.generateSignature(payload, webhook.Secret)
 	return hmac.Equal([]byte(signature), []byte(expectedSignature))
+}
+
+func validateWebhookURL(raw string, allowLoopback bool) error {
+	parsed, err := url.Parse(raw)
+	if err != nil || parsed.Hostname() == "" {
+		return fmt.Errorf("invalid webhook url")
+	}
+	if parsed.User != nil {
+		return fmt.Errorf("webhook url must not include credentials")
+	}
+	switch strings.ToLower(parsed.Scheme) {
+	case "https":
+		return nil
+	case "http":
+		if allowLoopback && isLoopbackHost(parsed.Hostname()) {
+			return nil
+		}
+		return fmt.Errorf("webhook url must use https")
+	default:
+		return fmt.Errorf("webhook url scheme is not allowed")
+	}
+}
+
+func isLoopbackHost(host string) bool {
+	host = strings.Trim(host, "[]")
+	if strings.EqualFold(host, "localhost") {
+		return true
+	}
+	ip := net.ParseIP(host)
+	return ip != nil && ip.IsLoopback()
+}
+
+func blockedWebhookIP(ip net.IP, allowLoopback bool) bool {
+	if ip.IsLoopback() {
+		return !allowLoopback
+	}
+	return ip.IsPrivate() || ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() || ip.IsUnspecified() || ip.IsMulticast()
+}
+
+func safeWebhookHeader(key, value string) bool {
+	if key == "" || strings.ContainsAny(key, "\r\n") || strings.ContainsAny(value, "\r\n") {
+		return false
+	}
+	switch strings.ToLower(key) {
+	case "host", "authorization", "cookie", "content-length", "transfer-encoding", "connection", "x-forwarded-for", "x-forwarded-host", "x-real-ip":
+		return false
+	default:
+		return true
+	}
+}
+
+func newWebhookClient(timeout time.Duration, allowLoopback bool) *http.Client {
+	dialer := &net.Dialer{Timeout: timeout}
+	transport := &http.Transport{
+		DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
+			host, port, err := net.SplitHostPort(addr)
+			if err != nil {
+				return nil, err
+			}
+			ips, err := net.DefaultResolver.LookupIPAddr(ctx, host)
+			if err != nil {
+				return nil, err
+			}
+			if len(ips) == 0 {
+				return nil, fmt.Errorf("webhook host has no addresses")
+			}
+			for _, ip := range ips {
+				if blockedWebhookIP(ip.IP, allowLoopback) {
+					return nil, fmt.Errorf("webhook target address is not allowed")
+				}
+			}
+			return dialer.DialContext(ctx, network, net.JoinHostPort(ips[0].IP.String(), port))
+		},
+	}
+	return &http.Client{
+		Timeout:   timeout,
+		Transport: transport,
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+	}
 }

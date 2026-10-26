@@ -52,6 +52,7 @@ func TestGraphQLServerHealth(t *testing.T) {
 		GraphQLPath:      "/graphql",
 		AllowedOrigins:   []string{"*"},
 		EnablePlayground: true,
+		AuthToken:        "test-token",
 	}
 
 	graphqlServer := graphql.NewServer(server, config)
@@ -100,7 +101,13 @@ func TestGraphQLServerHealth(t *testing.T) {
 	// Test GraphQL endpoint
 	t.Run("GraphQLEndpoint", func(t *testing.T) {
 		query := `{"query": "{ health { status timestamp } }"}`
-		resp, err := http.Post(testServer.URL+"/graphql", "application/json", bytes.NewBufferString(query))
+		req, err := http.NewRequest("POST", testServer.URL+"/graphql", bytes.NewBufferString(query))
+		if err != nil {
+			t.Fatalf("Failed to create GraphQL request: %v", err)
+		}
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("Authorization", "Bearer test-token")
+		resp, err := http.DefaultClient.Do(req)
 		if err != nil {
 			t.Fatalf("Failed to make GraphQL request: %v", err)
 		}
@@ -126,7 +133,12 @@ func TestGraphQLServerHealth(t *testing.T) {
 
 	// Test playground endpoint
 	t.Run("PlaygroundEndpoint", func(t *testing.T) {
-		resp, err := http.Get(testServer.URL + "/playground")
+		req, err := http.NewRequest("GET", testServer.URL+"/playground", nil)
+		if err != nil {
+			t.Fatalf("Failed to create playground request: %v", err)
+		}
+		req.Header.Set("Authorization", "Bearer test-token")
+		resp, err := http.DefaultClient.Do(req)
 		if err != nil {
 			t.Fatalf("Failed to make playground request: %v", err)
 		}
@@ -187,6 +199,7 @@ func TestGraphQLServerCORS(t *testing.T) {
 		GraphQLPath:      "/graphql",
 		AllowedOrigins:   []string{"*"},
 		EnablePlayground: true,
+		AuthToken:        "test-token",
 	}
 
 	graphqlServer := graphql.NewServer(server, config)
@@ -203,6 +216,7 @@ func TestGraphQLServerCORS(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Failed to create OPTIONS request: %v", err)
 		}
+		req.Header.Set("Origin", "https://app.example")
 
 		resp, err := http.DefaultClient.Do(req)
 		if err != nil {

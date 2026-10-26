@@ -2,15 +2,18 @@ package grpc
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
 	"log/slog"
 	"net"
 	"net/http"
+	"os"
 	"sync"
 	"time"
 
 	"github.com/Skpow1234/Shugo/internal/api/grpc/services"
 	"github.com/Skpow1234/Shugo/internal/app/fileserver"
+	"github.com/Skpow1234/Shugo/internal/httpsecure"
 	"github.com/Skpow1234/Shugo/proto/shugo"
 )
 
@@ -45,7 +48,7 @@ type Config struct {
 func DefaultConfig() *Config {
 	return &Config{
 		Port:      ":50051",
-		AuthToken: "your-secret-token",
+		AuthToken: os.Getenv("SHUGO_AUTH_TOKEN"),
 	}
 }
 
@@ -98,7 +101,7 @@ func NewServer(config *Config, logger *slog.Logger, fsServer *fileserver.Server)
 
 	server.httpServer = &http.Server{
 		Addr:              config.Port,
-		Handler:           mux,
+		Handler:           server.authMiddleware(mux),
 		ReadHeaderTimeout: 20 * time.Second,
 		ReadTimeout:       30 * time.Second,
 		WriteTimeout:      30 * time.Second,
@@ -110,13 +113,33 @@ func NewServer(config *Config, logger *slog.Logger, fsServer *fileserver.Server)
 
 // Start starts the server
 func (s *Server) Start() error {
-	listener, err := net.Listen("tcp", s.config.Port)
+	if s.config.AuthToken == "" {
+		return fmt.Errorf("SHUGO_AUTH_TOKEN is required")
+	}
+	certFile, keyFile := httpsecure.TLSFiles()
+	addr, useTLS, err := httpsecure.ConfigureAddr(s.config.Port, certFile, keyFile)
 	if err != nil {
-		return fmt.Errorf("failed to listen on port %s: %w", s.config.Port, err)
+		return err
+	}
+	listener, err := net.Listen("tcp", addr)
+	if err != nil {
+		return fmt.Errorf("failed to listen on port %s: %w", addr, err)
+	}
+	if useTLS {
+		pair, err := tls.LoadX509KeyPair(certFile, keyFile)
+		if err != nil {
+			_ = listener.Close()
+			return fmt.Errorf("load tls certificate: %w", err)
+		}
+		listener = tls.NewListener(listener, &tls.Config{
+			Certificates: []tls.Certificate{pair},
+			MinVersion:   tls.VersionTLS12,
+		})
 	}
 	s.listener = listener
+	s.httpServer.Addr = addr
 
-	s.logger.Info("Starting gRPC server (HTTP/JSON mode)", "port", s.config.Port)
+	s.logger.Info("Starting gRPC server (HTTP/JSON mode)", "port", addr, "tls", useTLS)
 
 	// Start event broadcasting goroutines
 	go s.broadcastFileEvents()
@@ -148,6 +171,20 @@ func (s *Server) Stop() error {
 	}
 
 	return nil
+}
+
+func (s *Server) authMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/health" {
+			next.ServeHTTP(w, r)
+			return
+		}
+		if !httpsecure.AuthorizeBearer(r.Header.Get("Authorization"), s.config.AuthToken) {
+			http.Error(w, "unauthorized", http.StatusUnauthorized)
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
 }
 
 // HTTP Handlers

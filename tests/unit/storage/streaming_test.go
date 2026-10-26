@@ -21,7 +21,10 @@ func TestStreamingEncryption(t *testing.T) {
 	streamingReader := bytes.NewReader(largeData)
 
 	// Create encryption key
-	key := crypto.NewEncryptionKey()
+	key, err := crypto.NewEncryptionKey()
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	// Create output buffer
 	outputBuffer := new(bytes.Buffer)
@@ -74,7 +77,10 @@ func TestStreamingWithoutBuffering(t *testing.T) {
 	}
 
 	// Create encryption key
-	key := crypto.NewEncryptionKey()
+	key, err := crypto.NewEncryptionKey()
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	// Create output buffer
 	outputBuffer := new(bytes.Buffer)

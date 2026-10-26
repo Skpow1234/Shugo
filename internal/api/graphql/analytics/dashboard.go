@@ -7,6 +7,8 @@ import (
 	"log/slog"
 	"net/http"
 	"time"
+
+	"github.com/Skpow1234/Shugo/internal/httpsecure"
 )
 
 // AnalyticsDashboard provides a web-based analytics dashboard
@@ -85,21 +87,17 @@ func (ad *AnalyticsDashboard) Start(ctx context.Context) error {
 		IdleTimeout:       60 * time.Second,
 	}
 
-	return server.ListenAndServe()
+	return httpsecure.ListenAndServe(server)
 }
 
 // CORSMiddleware adds CORS headers to responses
 func (ad *AnalyticsDashboard) CORSMiddleware(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Access-Control-Allow-Origin", "*")
-		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-		w.Header().Set("Access-Control-Allow-Headers", "Accept, Authorization, Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization")
-
+		httpsecure.SetCORS(w, r, nil)
 		if r.Method == "OPTIONS" {
 			w.WriteHeader(http.StatusOK)
 			return
 		}
-
 		next.ServeHTTP(w, r)
 	}
 }

@@ -13,6 +13,8 @@ import (
 
 	"github.com/gorilla/mux"
 	"gopkg.in/yaml.v3"
+
+	"github.com/Skpow1234/Shugo/internal/httpsecure"
 )
 
 // MockServer provides API mocking capabilities
@@ -135,7 +137,7 @@ func (ms *MockServer) Start(ctx context.Context) error {
 
 	// Start server
 	go func() {
-		if err := ms.server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+		if err := httpsecure.ListenAndServe(ms.server); err != nil && err != http.ErrServerClosed {
 			ms.logger.Error("Mock server error", "error", err)
 		}
 	}()

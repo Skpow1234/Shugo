@@ -14,7 +14,10 @@ func TestResilientReplication(t *testing.T) {
 	testData := []byte("test resilient replication data")
 
 	// Create encryption key
-	key := crypto.NewEncryptionKey()
+	key, err := crypto.NewEncryptionKey()
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	// Test streaming encryption (simulating replication)
 	streamingReader := bytes.NewReader(testData)

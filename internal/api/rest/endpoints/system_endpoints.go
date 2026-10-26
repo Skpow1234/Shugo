@@ -122,31 +122,11 @@ func (e *SystemEndpoints) HandleDocs(w http.ResponseWriter, r *http.Request) {
 <html lang="en">
 <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="description" content="Shugo REST API Documentation" />
-    <title>Shugo REST API - Swagger UI</title>
-    <link rel="stylesheet" type="text/css" href="https://unpkg.com/swagger-ui-dist@5.9.0/swagger-ui.css" />
+    <title>Shugo REST API</title>
 </head>
 <body>
-    <div id="swagger-ui"></div>
-    <script src="https://unpkg.com/swagger-ui-dist@5.9.0/swagger-ui-bundle.js" crossorigin></script>
-    <script>
-        window.onload = () => {
-            window.ui = SwaggerUIBundle({
-                url: '/swagger.json',
-                dom_id: '#swagger-ui',
-                deepLinking: true,
-                presets: [
-                    SwaggerUIBundle.presets.apis,
-                    SwaggerUIStandalonePreset
-                ],
-                plugins: [
-                    SwaggerUIBundle.plugins.DownloadUrl
-                ],
-                layout: "StandaloneLayout"
-            });
-        };
-    </script>
+    <h1>Shugo REST API</h1>
+    <p>The OpenAPI document is at <a href="/swagger.json">/swagger.json</a>.</p>
 </body>
 </html>`
 

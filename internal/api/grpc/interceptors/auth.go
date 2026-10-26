@@ -4,9 +4,12 @@ import (
 	"context"
 	"crypto/hmac"
 	"crypto/sha256"
+	"crypto/subtle"
 	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"log/slog"
+	"os"
 	"strings"
 	"time"
 
@@ -40,7 +43,7 @@ type AuthConfig struct {
 // DefaultAuthConfig returns the default authentication configuration
 func DefaultAuthConfig() *AuthConfig {
 	return &AuthConfig{
-		SecretKey:      "your-secret-key",
+		SecretKey:      authSecretFromEnv(),
 		TokenExpiry:    24 * time.Hour,
 		Issuer:         "shugo",
 		Audience:       "shugo-api",
@@ -214,10 +217,16 @@ func (ai *AuthInterceptor) parseToken(token string) (*TokenClaims, error) {
 		return nil, fmt.Errorf("invalid token payload: %w", err)
 	}
 
-	// Verify signature
-	signature := parts[2]
-	expectedSignature := ai.calculateSignature(parts[0] + "." + parts[1])
-	if signature != expectedSignature {
+	if ai.config.SecretKey == "" {
+		return nil, fmt.Errorf("auth secret is not configured")
+	}
+
+	signature, err := base64.RawURLEncoding.DecodeString(parts[2])
+	if err != nil {
+		return nil, fmt.Errorf("invalid token signature: %w", err)
+	}
+	expectedSignature := ai.signatureBytes(parts[0] + "." + parts[1])
+	if subtle.ConstantTimeCompare(signature, expectedSignature) != 1 {
 		return nil, fmt.Errorf("invalid token signature")
 	}
 
@@ -230,11 +239,17 @@ func (ai *AuthInterceptor) parseToken(token string) (*TokenClaims, error) {
 	return claims, nil
 }
 
-// calculateSignature calculates the HMAC signature for the token
-func (ai *AuthInterceptor) calculateSignature(data string) string {
+func (ai *AuthInterceptor) signatureBytes(data string) []byte {
 	h := hmac.New(sha256.New, []byte(ai.config.SecretKey))
 	h.Write([]byte(data))
-	return base64.RawURLEncoding.EncodeToString(h.Sum(nil))
+	return h.Sum(nil)
+}
+
+func authSecretFromEnv() string {
+	if secret := os.Getenv("SHUGO_AUTH_SECRET"); secret != "" {
+		return secret
+	}
+	return os.Getenv("SHUGO_AUTH_TOKEN")
 }
 
 // TokenClaims represents the claims in a token
@@ -247,22 +262,15 @@ type TokenClaims struct {
 	ExpiresAt time.Time `json:"exp"`
 }
 
-// parseClaims parses claims from JSON payload
 func parseClaims(payload []byte) (*TokenClaims, error) {
-	// Simple JSON parsing - in production, use a proper JSON library
-	// This is a simplified implementation for demonstration
-	_ = payload // TODO: Implement proper JSON parsing
-
-	claims := &TokenClaims{
-		UserID:    "user123",
-		Roles:     []string{"user"},
-		Issuer:    "shugo",
-		Audience:  "shugo-api",
-		IssuedAt:  time.Now().Add(-time.Hour),
-		ExpiresAt: time.Now().Add(24 * time.Hour),
+	var claims TokenClaims
+	if err := json.Unmarshal(payload, &claims); err != nil {
+		return nil, err
 	}
-
-	return claims, nil
+	if claims.UserID == "" {
+		return nil, fmt.Errorf("missing user id")
+	}
+	return &claims, nil
 }
 
 // wrappedServerStream wraps a ServerStream with a custom context
@@ -288,20 +296,18 @@ func (ai *AuthInterceptor) GenerateToken(userID string, roles []string) (string,
 		ExpiresAt: now.Add(ai.config.TokenExpiry),
 	}
 
-	// Encode header
+	if ai.config.SecretKey == "" {
+		return "", fmt.Errorf("auth secret is not configured")
+	}
+
 	header := base64.RawURLEncoding.EncodeToString([]byte(`{"alg":"HS256","typ":"JWT"}`))
-
-	// Encode payload
-	payload := base64.RawURLEncoding.EncodeToString([]byte(fmt.Sprintf(`{"user_id":"%s","roles":["%s"],"iss":"%s","aud":"%s","iat":%d,"exp":%d}`,
-		claims.UserID, strings.Join(claims.Roles, "\",\""), claims.Issuer, claims.Audience, claims.IssuedAt.Unix(), claims.ExpiresAt.Unix())))
-
-	// Calculate signature
-	signature := ai.calculateSignature(header + "." + payload)
-
-	// Combine token parts
-	token := header + "." + payload + "." + signature
-
-	return token, nil
+	payloadBytes, err := json.Marshal(claims)
+	if err != nil {
+		return "", fmt.Errorf("encode token claims: %w", err)
+	}
+	payload := base64.RawURLEncoding.EncodeToString(payloadBytes)
+	signature := base64.RawURLEncoding.EncodeToString(ai.signatureBytes(header + "." + payload))
+	return header + "." + payload + "." + signature, nil
 }
 
 // ValidateUserRole validates if a user has a specific role

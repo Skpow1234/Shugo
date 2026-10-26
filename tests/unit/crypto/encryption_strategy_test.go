@@ -13,14 +13,17 @@ func TestEncryptionAtRest(t *testing.T) {
 	originalData := []byte("test encryption at rest data")
 
 	// Create encryption key
-	key := crypto.NewEncryptionKey()
+	key, err := crypto.NewEncryptionKey()
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	// Simulate storing data with encryption at rest
 	reader := bytes.NewReader(originalData)
 	var encryptedBuffer bytes.Buffer
 
 	// Encrypt data (simulating storage)
-	_, err := crypto.CopyEncrypt(key, reader, &encryptedBuffer)
+	_, err = crypto.CopyEncrypt(key, reader, &encryptedBuffer)
 	if err != nil {
 		t.Fatalf("failed to encrypt data: %v", err)
 	}
@@ -44,12 +47,15 @@ func TestDecryptionAtRest(t *testing.T) {
 	originalData := []byte("test decryption at rest data")
 
 	// Create encryption key
-	key := crypto.NewEncryptionKey()
+	key, err := crypto.NewEncryptionKey()
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	// Encrypt data
 	reader := bytes.NewReader(originalData)
 	var encryptedBuffer bytes.Buffer
-	_, err := crypto.CopyEncrypt(key, reader, &encryptedBuffer)
+	_, err = crypto.CopyEncrypt(key, reader, &encryptedBuffer)
 	if err != nil {
 		t.Fatalf("failed to encrypt data: %v", err)
 	}
@@ -76,13 +82,16 @@ func TestEncryptionConsistency(t *testing.T) {
 	originalData := []byte("test consistency data")
 
 	// Create encryption key
-	key := crypto.NewEncryptionKey()
+	key, err := crypto.NewEncryptionKey()
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	// Encrypt the same data twice
 	var encrypted1, encrypted2 bytes.Buffer
 
 	reader1 := bytes.NewReader(originalData)
-	_, err := crypto.CopyEncrypt(key, reader1, &encrypted1)
+	_, err = crypto.CopyEncrypt(key, reader1, &encrypted1)
 	if err != nil {
 		t.Fatalf("failed to encrypt data first time: %v", err)
 	}
@@ -134,12 +143,15 @@ func TestLargeDataEncryption(t *testing.T) {
 	}
 
 	// Create encryption key
-	key := crypto.NewEncryptionKey()
+	key, err := crypto.NewEncryptionKey()
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	// Encrypt large data
 	reader := bytes.NewReader(originalData)
 	var encryptedBuffer bytes.Buffer
-	_, err := crypto.CopyEncrypt(key, reader, &encryptedBuffer)
+	_, err = crypto.CopyEncrypt(key, reader, &encryptedBuffer)
 	if err != nil {
 		t.Fatalf("failed to encrypt large data: %v", err)
 	}

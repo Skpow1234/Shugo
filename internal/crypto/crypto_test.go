@@ -277,7 +277,8 @@ func TestCopyDecrypt_WrongKey(t *testing.T) {
 }
 
 func TestNewEncryptionKey_Deprecated(t *testing.T) {
-	key := NewEncryptionKey()
+	key, err := NewEncryptionKey()
+	require.NoError(t, err)
 	assert.Len(t, key, 32)
 }
 

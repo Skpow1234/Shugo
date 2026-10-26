@@ -11,6 +11,8 @@ import (
 
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
+
+	shugocrypto "github.com/Skpow1234/Shugo/internal/crypto"
 )
 
 // BlockchainNetwork represents a blockchain network
@@ -206,10 +208,16 @@ func (bi *BlockchainIntegration) CreateIdentity(ctx context.Context, networkName
 	// Generate DID
 	did := fmt.Sprintf("did:peer:1z%s", hex.EncodeToString(address.Bytes())[:16])
 
+	privateKeyHex := hex.EncodeToString(crypto.FromECDSA(privateKey))
+	sealedKey, err := shugocrypto.SealString(privateKeyHex)
+	if err != nil {
+		return nil, err
+	}
+
 	identity := &DecentralizedIdentity{
 		DID:        did,
 		PublicKey:  hex.EncodeToString(crypto.FromECDSAPub(publicKey)),
-		PrivateKey: hex.EncodeToString(crypto.FromECDSA(privateKey)),
+		PrivateKey: sealedKey,
 		Address:    address.Hex(),
 		Network:    network,
 		CreatedAt:  time.Now(),

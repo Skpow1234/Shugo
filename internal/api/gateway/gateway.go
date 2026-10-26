@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/Skpow1234/Shugo/internal/api/rest/ratelimit"
+	"github.com/Skpow1234/Shugo/internal/httpsecure"
 )
 
 // Gateway represents an API gateway
@@ -184,7 +185,7 @@ func (gw *Gateway) Start() error {
 	}
 
 	gw.logger.Info("Starting API gateway", "addr", gw.config.ListenAddr)
-	return server.ListenAndServe()
+	return httpsecure.ListenAndServe(server)
 }
 
 // Stop stops the API gateway
@@ -450,15 +451,11 @@ func (gw *Gateway) loggingMiddleware(next http.Handler) http.Handler {
 // corsMiddleware adds CORS headers
 func (gw *Gateway) corsMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Access-Control-Allow-Origin", "*")
-		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-API-Key")
-
+		httpsecure.SetCORS(w, r, nil)
 		if r.Method == "OPTIONS" {
 			w.WriteHeader(http.StatusOK)
 			return
 		}
-
 		next.ServeHTTP(w, r)
 	})
 }

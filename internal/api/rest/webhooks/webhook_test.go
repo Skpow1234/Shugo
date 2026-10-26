@@ -24,6 +24,7 @@ func TestWebhookManagerBasic(t *testing.T) {
 		QueueSize:       10,
 		DeliveryTimeout: 5 * time.Second,
 		SignatureHeader: "X-Hub-Signature-256",
+		AllowLoopback:   true,
 	}
 
 	wm := NewManager(config, createTestLogger())
@@ -35,7 +36,7 @@ func TestWebhookManagerBasic(t *testing.T) {
 
 	// Test registering a webhook
 	webhookConfig := &WebhookConfig{
-		URL:    "http://example.com/webhook",
+		URL:    "https://example.com/webhook",
 		Events: []string{"file.uploaded", "file.deleted"},
 		Active: true,
 	}
@@ -97,6 +98,7 @@ func TestWebhookDelivery(t *testing.T) {
 		QueueSize:       10,
 		DeliveryTimeout: 5 * time.Second,
 		SignatureHeader: "X-Hub-Signature-256",
+		AllowLoopback:   true,
 	}
 
 	wm := NewManager(config, createTestLogger())
@@ -181,6 +183,7 @@ func TestWebhookRetry(t *testing.T) {
 		QueueSize:       10,
 		DeliveryTimeout: 5 * time.Second,
 		SignatureHeader: "X-Hub-Signature-256",
+		AllowLoopback:   true,
 		RetryConfig: &RetryConfig{
 			MaxRetries:    2,
 			InitialDelay:  10 * time.Millisecond,
@@ -241,6 +244,7 @@ func TestWebhookSignature(t *testing.T) {
 		QueueSize:       10,
 		DeliveryTimeout: 5 * time.Second,
 		SignatureHeader: "X-Hub-Signature-256",
+		AllowLoopback:   true,
 	}
 
 	wm := NewManager(config, createTestLogger())
@@ -252,7 +256,7 @@ func TestWebhookSignature(t *testing.T) {
 
 	// Register webhook with secret
 	webhookConfig := &WebhookConfig{
-		URL:    "http://example.com",
+		URL:    "https://example.com",
 		Secret: "test-secret",
 		Events: []string{"file.uploaded"},
 		Active: true,
@@ -299,6 +303,7 @@ func TestWebhookEventFiltering(t *testing.T) {
 		QueueSize:       10,
 		DeliveryTimeout: 5 * time.Second,
 		SignatureHeader: "X-Hub-Signature-256",
+		AllowLoopback:   true,
 	}
 
 	wm := NewManager(config, createTestLogger())
@@ -362,6 +367,7 @@ func TestWebhookStats(t *testing.T) {
 		QueueSize:       10,
 		DeliveryTimeout: 5 * time.Second,
 		SignatureHeader: "X-Hub-Signature-256",
+		AllowLoopback:   true,
 	}
 
 	wm := NewManager(config, createTestLogger())
@@ -373,7 +379,7 @@ func TestWebhookStats(t *testing.T) {
 
 	// Register a webhook
 	webhookConfig := &WebhookConfig{
-		URL:    "http://example.com",
+		URL:    "https://example.com",
 		Events: []string{"file.uploaded"},
 		Active: true,
 	}
