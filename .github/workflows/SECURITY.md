@@ -80,7 +80,11 @@ permissions:
 
 ## CodeQL Integration
 
-The permissions configuration addresses CodeQL rule `actions/missing-workflow-permissions` by:
+[`codeql.yml`](codeql.yml) is the advanced CodeQL setup. Go analysis uses a manual `go build ./...` step (default setup’s autobuild left Go unprocessed on this repo). JS/TS and Actions use `build-mode: none`.
+
+Use **advanced** setup only: Settings → Advanced Security → CodeQL → Switch to advanced / disable default setup after this workflow is on `main`.
+
+Workflow permissions address CodeQL rule `actions/missing-workflow-permissions` by:
 
 1. **Explicit Permission Declaration**: All workflows explicitly declare permissions
 2. **Minimal Required Permissions**: Only necessary permissions are granted

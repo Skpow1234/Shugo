@@ -54,6 +54,12 @@ govulncheck ./...
 
 Deeper vuln/compliance scans (govulncheck, semgrep, secrets, Trivy, schedule). See [SECURITY.md](SECURITY.md).
 
+## CodeQL (`codeql.yml`)
+
+Advanced CodeQL for Go, JavaScript/TypeScript, and Actions. Go uses `build-mode: manual` and `go build ./...` so analysis is not skipped the way default autobuild was on this multi-`cmd` module.
+
+After the first successful run, switch the repo from **default** to **advanced** CodeQL under Settings → Advanced Security (disable default setup if it is still on). Otherwise both setups can fight each other.
+
 ## Development security (`security-dev.yml`)
 
 Lighter checks when security-related paths change.
